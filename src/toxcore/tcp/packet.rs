@@ -104,6 +104,38 @@ impl ToBytes for Packet {
     }
 }
 
+/** Packets are encrypted and sent in this form.
+
+Serialized form:
+
+Length     | Content
+---------- | ------
+`2`        | Length of encrypted payload in BigEndian
+variable   | Encrypted payload
+
+*/
+#[derive(Debug, PartialEq, Clone)]
+pub struct EncryptedPacket {
+    /// Encrypted payload
+    pub payload: Vec<u8>
+}
+
+impl FromBytes for EncryptedPacket {
+    named!(from_bytes<EncryptedPacket>, do_parse!(
+        len: be_u16 >>
+        payload: take!(len) >>
+        (EncryptedPacket { payload: payload.to_vec() })
+    ));
+}
+
+impl ToBytes for EncryptedPacket {
+    fn to_bytes<'a>(&self, buf: (&'a mut [u8], usize)) -> Result<(&'a mut [u8], usize), GenError> {
+        do_gen!(buf,
+            gen_be_u16!(self.payload.len()) >>
+            gen_slice!(self.payload.as_slice())
+        )
+    }
+}
 
 /** Sent by client to server.
 Send a routing request to the server that we want to connect
