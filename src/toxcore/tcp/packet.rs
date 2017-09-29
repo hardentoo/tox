@@ -293,7 +293,7 @@ Serialized form:
 Length | Content
 ------ | ------
 `1`    | 0x04
-`8`    | ping_id in LittleEndian
+`8`    | ping_id in BigEndian
 
 */
 #[derive(Debug, PartialEq, Clone)]
@@ -305,7 +305,7 @@ pub struct PingRequest {
 impl FromBytes for PingRequest {
     named!(from_bytes<PingRequest>, do_parse!(
         tag!("\x04") >>
-        ping_id: le_u64 >>
+        ping_id: be_u64 >>
         (PingRequest { ping_id: ping_id })
     ));
 }
@@ -314,7 +314,7 @@ impl ToBytes for PingRequest {
     fn to_bytes<'a>(&self, buf: (&'a mut [u8], usize)) -> Result<(&'a mut [u8], usize), GenError> {
         do_gen!(buf,
             gen_be_u8!(0x04) >>
-            gen_le_u64!(self.ping_id)
+            gen_be_u64!(self.ping_id)
         )
     }
 }
@@ -331,7 +331,7 @@ Serialized form:
 Length | Content
 ------ | ------
 `1`    | 0x05
-`8`    | ping_id in LittleEndian
+`8`    | ping_id in BigEndian
 
 */
 #[derive(Debug, PartialEq, Clone)]
@@ -343,7 +343,7 @@ pub struct PongResponse {
 impl FromBytes for PongResponse {
     named!(from_bytes<PongResponse>, do_parse!(
         tag!("\x05") >>
-        ping_id: le_u64 >>
+        ping_id: be_u64 >>
         (PongResponse { ping_id: ping_id })
     ));
 }
@@ -352,7 +352,7 @@ impl ToBytes for PongResponse {
     fn to_bytes<'a>(&self, buf: (&'a mut [u8], usize)) -> Result<(&'a mut [u8], usize), GenError> {
         do_gen!(buf,
             gen_be_u8!(0x05) >>
-            gen_le_u64!(self.ping_id)
+            gen_be_u64!(self.ping_id)
         )
     }
 }
