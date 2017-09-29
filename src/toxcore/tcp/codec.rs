@@ -76,6 +76,51 @@ impl Encoder for Codec {
     }
 }
 
+/// implements tokio-io's Decoder and Encoder to deal with EncryptedPacket
+pub struct EncryptedCodec;
+
+impl Decoder for EncryptedCodec {
+    type Item = EncryptedPacket;
+    type Error = Error;
+
+    fn decode(&mut self, buf: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
+        let (consumed, packet) = match EncryptedPacket::from_bytes(buf) {
+            IResult::Incomplete(_) => {
+                return Ok(None)
+            },
+            IResult::Error(e) => {
+                return Err(Error::new(ErrorKind::Other, format!("decode error: {:?}", e)))
+            },
+            IResult::Done(i, packet) => {
+                (buf.offset(i), packet)
+            }
+        };
+
+        buf.split_to(consumed);
+
+        Ok(Some(packet))
+    }
+}
+
+impl Encoder for EncryptedCodec {
+    type Item = EncryptedPacket;
+    type Error = Error;
+
+    fn encode(&mut self, packet: Self::Item, buf: &mut BytesMut) -> Result<(), Self::Error> {
+        let mut stack_buf = [0; 2050];
+        match packet.to_bytes((&mut stack_buf, 0)).map(|tup| tup.1) {
+            Ok(produced) => {
+                buf.extend_from_slice(&stack_buf[..produced]);
+                trace!("serialized packet: {} bytes", produced);
+                Ok(())
+            },
+            Err(e) => {
+                Err(Error::new(ErrorKind::Other, format!("encode error: {:?}", e)))
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use ::toxcore::crypto_core::*;
