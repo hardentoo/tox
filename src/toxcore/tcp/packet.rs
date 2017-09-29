@@ -122,8 +122,7 @@ pub struct EncryptedPacket {
 
 impl FromBytes for EncryptedPacket {
     named!(from_bytes<EncryptedPacket>, do_parse!(
-        len: be_u16 >>
-        payload: take!(len) >>
+        payload: length_data!(be_u16) >>
         (EncryptedPacket { payload: payload.to_vec() })
     ));
 }
