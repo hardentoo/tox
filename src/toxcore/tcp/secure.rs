@@ -126,15 +126,13 @@ pub struct Channel {
 }
 
 impl Channel {
-    /** Create a secure channel with `our_session` and `other_pk` & `other_nonce`
+    /** Create a secure channel with `our_session` and `their_pk` & `their_nonce`
     */
-    pub fn new(our_session: Session, other_pk: &PublicKey, other_nonce: &Nonce) -> Channel {
-        let precomputed = our_session.create_precomputed_key(other_pk);
-        Channel {
-            precomputed_key: precomputed,
-            sent_nonce: our_session.nonce().to_owned().into(),
-            recv_nonce: other_nonce.to_owned().into()
-        }
+    pub fn new(our_session: Session, their_pk: &PublicKey, their_nonce: &Nonce) -> Channel {
+        let precomputed = our_session.create_precomputed_key(their_pk);
+        let sent_n = our_session.nonce().clone().into();
+        let recv_n = their_nonce.clone().into();
+        Channel { precomputed_key: precomputed, sent_nonce: sent_n, recv_nonce: recv_n }
     }
     /** Encrypt data, increment sent_nonce
     */
