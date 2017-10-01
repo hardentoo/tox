@@ -55,9 +55,10 @@ impl<'secure_channel> Decoder for Codec<'secure_channel> {
         };
 
         // decrypt payload
-        let decrypted_data = try!(self.channel.decrypt(&encrypted_packet.payload)
-            .map_err(|_| Error::new(ErrorKind::Other, "EncryptedPacket decrypt failed"))
-        );
+        let decrypted_data = self.channel.decrypt(&encrypted_packet.payload)
+            .map_err(|_|
+                Error::new(ErrorKind::Other, "EncryptedPacket decrypt failed")
+            )?;
 
         // deserialize Packet
         let mut local_stack = BytesMut::from(decrypted_data);
@@ -84,25 +85,29 @@ impl<'secure_channel> Encoder for Codec<'secure_channel> {
     type Error = Error;
 
     fn encode(&mut self, packet: Self::Item, buf: &mut BytesMut) -> Result<(), Self::Error> {
-        let mut stack_buf = [0; 2050];
         // serialize Packet
-        let (_, packet_size) = try!( packet.to_bytes((&mut stack_buf, 0))
-            .map_err(|e| Error::new(ErrorKind::Other,
-                format!("Packet serialize error: {:?}", e)))
-        );
+        // a serialized Packet should be not longer than 2032 bytes
+        let mut packet_buf = [0; 2032];
+        let (_, packet_size) = packet.to_bytes((&mut packet_buf, 0))
+            .map_err(|e|
+                Error::new(ErrorKind::Other,
+                    format!("Packet serialize error: {:?}", e))
+            )?;
 
         // encrypt it
-        let encrypted = self.channel.encrypt(&stack_buf[..packet_size]);
+        let encrypted = self.channel.encrypt(&packet_buf[..packet_size]);
 
         // create EncryptedPacket
         let encrypted_packet = EncryptedPacket { payload: encrypted };
 
         // serialize EncryptedPacket to binary form
-        let (_, encrypted_packet_size) = try!( encrypted_packet.to_bytes((&mut stack_buf, 0))
-            .map_err(|e| Error::new(ErrorKind::Other,
-                format!("EncryptedPacket serialize error: {:?}", e)))
-        );
-        buf.extend_from_slice(&stack_buf[..encrypted_packet_size]);
+        // a serialized EncryptedPacket should be not longer than 2050 bytes
+        let mut encrypted_packet_buf = [0; 2050];
+        let (_, encrypted_packet_size) = encrypted_packet.to_bytes((&mut encrypted_packet_buf, 0))
+            .expect("EncryptedPacket serialize failed"); // there is nothing to fail since
+                    // serialized Packet is not longer than 2032 bytes
+                    // and we provided 2050 bytes for EncryptedPacket
+        buf.extend_from_slice(&encrypted_packet_buf[..encrypted_packet_size]);
         Ok(())
     }
 }
@@ -157,7 +162,7 @@ mod tests {
         check_packet(&mut buf, &mut alice_codec, &mut bob_codec, Packet::PongResponse( PongResponse { ping_id: 4242 } ) );
         check_packet(&mut buf, &mut alice_codec, &mut bob_codec, Packet::OobSend( OobSend { destination_pk: pk, data: vec![13; 42] } ) );
         check_packet(&mut buf, &mut alice_codec, &mut bob_codec, Packet::OobReceive( OobReceive { sender_pk: pk, data: vec![13; 24] } ) );
-        check_packet(&mut buf, &mut alice_codec, &mut bob_codec, Packet::Data( Data { connection_id: 42, data: vec![13; 2] } ) );
+        check_packet(&mut buf, &mut alice_codec, &mut bob_codec, Packet::Data( Data { connection_id: 42, data: vec![13; 2031] } ) );
     }
     #[test]
     fn decode_encrypted_packet_incomplete() {
@@ -238,5 +243,16 @@ mod tests {
 
         alice_codec.encode(packet.clone(), &mut buf).expect("Alice should encode");
         assert!(bob_codec.decode(&mut buf).is_err());
+    }
+
+    #[test]
+    fn encode_packet_too_big() {
+        let (alice_channel, _) = create_channels();
+        let mut buf = BytesMut::new();
+        let mut alice_codec = Codec { channel: &alice_channel };
+        let packet = Packet::Data( Data { connection_id: 42, data: vec![13; 2032] } );
+
+        // Alice cannot serialize Packet because it is too long
+        assert!(alice_codec.encode(packet, &mut buf).is_err());
     }
 }
