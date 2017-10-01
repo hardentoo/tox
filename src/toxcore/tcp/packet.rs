@@ -40,10 +40,6 @@ impl FromBytes for PublicKey {
     named!(from_bytes<PublicKey>, map_opt!(take!(PUBLICKEYBYTES), PublicKey::from_slice));
 }
 
-impl FromBytes for Nonce {
-    named!(from_bytes<Nonce>, map_opt!(take!(NONCEBYTES), Nonce::from_slice));
-}
-
 /** Top-level TCP packet.
 
     According to https://zetok.github.io/tox-spec/#encrypted-payload-types.
@@ -122,7 +118,9 @@ pub struct EncryptedPacket {
 
 impl FromBytes for EncryptedPacket {
     named!(from_bytes<EncryptedPacket>, do_parse!(
-        payload: length_data!(be_u16) >>
+        length: be_u16 >>
+        verify!(value!(length), |len| len > 0 /* TODO len < 2048... ? */ ) >>
+        payload: take!(length) >>
         (EncryptedPacket { payload: payload.to_vec() })
     ));
 }
@@ -507,6 +505,7 @@ pub struct Data {
 impl FromBytes for Data {
     named!(from_bytes<Data>, do_parse!(
         connection_id: be_u8 >>
+        verify!(value!(connection_id), |id| id >= 0x10 && id < 0xF0) >>
         data: rest >>
         (Data { connection_id: connection_id, data: data.to_vec() })
     ));
